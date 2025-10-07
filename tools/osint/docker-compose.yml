@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Python SDK API - Wrapper unificado para todas as ferramentas
+  osint-api:
+    build:
+      context: ./python-sdk
+      dockerfile: Dockerfile
+    container_name: osint-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - API_KEY=${OSINT_API_KEY:-secret-key-change-me}
+      - SOCIAL_MAPPER_PATH=/app/tools/social-mapper
+      - EAGLEEYE_PATH=/app/tools/eagleeye
+      - THEHARVESTER_PATH=/app/tools/theharvester
+    volumes:
+      - ./social-mapper:/app/tools/social-mapper:ro
+      - ./eagleeye:/app/tools/eagleeye:ro
+      - ./theharvester:/app/tools/theharvester:ro
+      - osint-uploads:/app/uploads
+      - osint-results:/app/results
+    networks:
+      - osint-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis para cache e filas
+  redis:
+    image: redis:7-alpine
+    container_name: osint-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - osint-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  osint-uploads:
+    driver: local
+  osint-results:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  osint-network:
+    driver: bridge
